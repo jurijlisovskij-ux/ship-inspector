@@ -11,10 +11,10 @@ function saveState(){localStorage.setItem(storeKey, JSON.stringify(state)); rend
 function today(){return new Date().toISOString().slice(0,10)}
 function esc(s=''){return String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}
 function fmtDate(s){if(!s)return '—'; const [y,m,d]=s.split('-'); return `${d}.${m}.${y}`}
+function fmtDateTime(s){if(!s)return '—'; const d=new Date(s); return d.toLocaleString();}
 
 function switchView(name){$$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));$$('.view').forEach(v=>v.classList.toggle('active',v.id===`view-${name}`)); window.scrollTo({top:0,behavior:'smooth'});}
 $$('.tab').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
-$$('.go-workplan').forEach(b=>b.addEventListener('click',()=>switchView('workplan')));
 
 $('#newInspectionBtn').addEventListener('click',()=>{switchView('inspection');$('#vesselName').focus()});
 $('#continueBtn').addEventListener('click',()=>switchView('inspection'));
@@ -24,13 +24,13 @@ $('#dateFrom').value=today();$('#dateTo').value=today();
 
 $('#startInspectionBtn').addEventListener('click',()=>{
  const vessel=$('#vesselName').value.trim(); if(!vessel)return alert('Enter vessel name.');
- state.inspection={vessel, imo:$('#imo').value.trim(), port:$('#port').value.trim(), dateFrom:$('#dateFrom').value, dateTo:$('#dateTo').value, inspector:$('#inspector').value.trim(), reason:$('#reason').value.trim(), createdAt:new Date().toISOString()};
+ state.inspection={vessel, imo:$('#imo').value.trim(), port:$('#port').value.trim(), dateFrom:$('#dateFrom').value, dateTo:$('#dateTo').value, inspector:$('#inspector').value.trim(), reason:$('#reason').value.trim(), createdAt:new Date().toISOString(), finishedAt:null};
  state.records=[]; state.nextRecordNo=1; saveState();
 });
 
-$('#addRecordBtn').addEventListener('click',openRecordDialog);
+$('#addRecordBtn').addEventListener('click',()=>openRecordDialog('condition'));
 function openRecordDialog(type='condition'){
- recordType=type; $('#recordForm').reset(); $('#recordCondition').value='Good'; $('#addToWorkPlan').checked=true; $('#photoPreview').innerHTML=''; toggleRecordType(); $('#recordDialog').showModal();
+ recordType=type; $('#recordForm').reset(); $('#recordCondition').value='Good'; $('#addToWorkPlan').checked=true; $('#photoPreview').innerHTML=''; $('#recordPhotos')._dataUrls=[]; toggleRecordType(); $('#recordDialog').showModal();
 }
 $('#recordTypeGroup').addEventListener('click',e=>{const b=e.target.closest('button[data-type]');if(!b)return;recordType=b.dataset.type;toggleRecordType()});
 function toggleRecordType(){
@@ -54,18 +54,51 @@ $('#recordForm').addEventListener('submit',e=>{
 });
 
 $$('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
-$('#printReportBtn').addEventListener('click',()=>{document.title=`${state.inspection?.vessel||'Vessel'} Superintendent Inspection`;window.print()});
+
+$('#previewReportBtn').addEventListener('click',()=>{renderReportPreview();switchView('preview')});
+$('#backToInspectionBtn').addEventListener('click',()=>switchView('inspection'));
+$('#finishReportBtn').addEventListener('click',()=>{
+ if(!state.inspection)return;
+ if(!state.records.length && !confirm('The report has no records. Finish anyway?'))return;
+ if(state.inspection.finishedAt){renderReportPreview();switchView('preview');return;}
+ if(!confirm('Finish this inspection report? You can still review and edit it later on PC.'))return;
+ state.inspection.finishedAt=new Date().toISOString();
+ saveState(); renderReportPreview(); switchView('preview');
+});
+$('#printReportBtn').addEventListener('click',()=>{renderReportPreview();document.title=`${state.inspection?.vessel||'Vessel'} Superintendent Inspection`;window.print()});
 
 $('#addWorkBtn').addEventListener('click',()=>openWorkDialog());
 function openWorkDialog(item=null){$('#workForm').reset();$('#workDialogTitle').textContent=item?`Work No. ${item.no}`:'Add Work';$('#workId').value=item?.id||'';$('#workDescription').value=item?.description||'';$('#workResponsible').value=item?.responsible||'';$('#workDueDate').value=item?.dueDate||'';$('#workProgress').value=item?.progress??0;$('#workRemarks').value=item?.remarks||'';$('#workDialog').showModal();}
 $('#workForm').addEventListener('submit',e=>{e.preventDefault();const id=$('#workId').value;const p=Math.max(0,Math.min(100,Number($('#workProgress').value||0)));if(id){const w=state.workplan.find(x=>x.id===id);Object.assign(w,{description:$('#workDescription').value.trim(),responsible:$('#workResponsible').value.trim(),dueDate:$('#workDueDate').value,progress:p,remarks:$('#workRemarks').value.trim(),updatedAt:new Date().toISOString()});}else{state.workplan.push({id:crypto.randomUUID(),no:state.nextWorkNo++,description:$('#workDescription').value.trim(),responsible:$('#workResponsible').value.trim(),dueDate:$('#workDueDate').value,progress:p,remarks:$('#workRemarks').value.trim(),createdAt:new Date().toISOString()});}$('#workDialog').close();saveState();});
 $('#workSearch').addEventListener('input',renderWorkPlan);$('#workFilter').addEventListener('change',renderWorkPlan);
 
-function renderAll(){renderInspection();renderDashboard();renderWorkPlan();renderReview();}
-function renderDashboard(){const i=state.inspection;$('#dashInspectionTitle').textContent=i?`${i.vessel} — ${fmtDate(i.dateFrom)}`:'No inspection started';$('#dashStats').innerHTML=i?statsHtml():''}
+function renderAll(){renderInspection();renderDashboard();renderWorkPlan();renderReview();renderReportPreview();}
+function renderDashboard(){const i=state.inspection;$('#dashInspectionTitle').textContent=i?`${i.vessel} — ${fmtDate(i.dateFrom)}`:'No inspection started';$('#dashStats').innerHTML=i?statsHtml():'';$('#dashStatus').textContent=i?(i.finishedAt?`Completed ${fmtDateTime(i.finishedAt)}`:'Draft / active inspection'):''}
 function statsHtml(){const findings=state.records.filter(r=>r.type==='finding').length;const urgent=state.records.filter(r=>r.priority==='Urgent').length;const photos=state.records.reduce((n,r)=>n+(r.photos?.length||0),0);return `<span class="stat">Records ${state.records.length}</span><span class="stat">Findings ${findings}</span><span class="stat">Urgent ${urgent}</span><span class="stat">Photos ${photos}</span>`}
-function renderInspection(){const i=state.inspection;$('#inspectionSetup').hidden=!!i;$('#inspectionWorkspace').hidden=!i;if(!i)return;$('#inspectionHeading').textContent=i.vessel;$('#inspectionMeta').textContent=`IMO ${i.imo||'—'} · ${i.port||'—'} · ${fmtDate(i.dateFrom)}${i.dateTo&&i.dateTo!==i.dateFrom?' – '+fmtDate(i.dateTo):''}`;$('#inspectionStats').innerHTML=statsHtml();const root=$('#recordsList');root.innerHTML='';if(!state.records.length){root.innerHTML='<p class="muted">No records yet. Add the first condition photo or finding.</p>';return;}[...state.records].reverse().forEach(r=>{const n=$('#recordTemplate').content.cloneNode(true);n.querySelector('.record-no').textContent=`#${String(r.no).padStart(3,'0')} · ${r.area}`;const badge=n.querySelector('.record-badge');badge.textContent=r.type==='condition'?(r.condition||'Condition'):(r.priority||'Finding');badge.className=`badge record-badge ${r.type==='condition'?'condition':(r.priority==='Urgent'?'urgent':'finding')}`;n.querySelector('.record-location').textContent=r.location||'No location';n.querySelector('.record-description').textContent=r.description||'';n.querySelector('.record-meta').innerHTML=`<span>${r.type==='condition'?'CONDITION / PHOTO':'FINDING'}</span><span>📷 ${r.photos?.length||0}</span>`;n.querySelector('.thumbs').innerHTML=(r.photos||[]).slice(0,4).map(u=>`<img src="${u}">`).join('');root.appendChild(n);});}
+function renderInspection(){const i=state.inspection;$('#inspectionSetup').hidden=!!i;$('#inspectionWorkspace').hidden=!i;if(!i)return;$('#inspectionHeading').textContent=i.vessel;$('#inspectionMeta').textContent=`IMO ${i.imo||'—'} · ${i.port||'—'} · ${fmtDate(i.dateFrom)}${i.dateTo&&i.dateTo!==i.dateFrom?' – '+fmtDate(i.dateTo):''}`;$('#inspectionStats').innerHTML=statsHtml();$('#inspectionStatusLabel').textContent=i.finishedAt?'COMPLETED':'ACTIVE';$('#finishReportBtn').textContent=i.finishedAt?'✓ REPORT COMPLETED — PREVIEW':'✓ FINISH REPORT';const root=$('#recordsList');root.innerHTML='';if(!state.records.length){root.innerHTML='<p class="muted">No records yet. Add the first condition photo or finding.</p>';return;}[...state.records].reverse().forEach(r=>{const n=$('#recordTemplate').content.cloneNode(true);n.querySelector('.record-no').textContent=`#${String(r.no).padStart(3,'0')} · ${r.area}`;const badge=n.querySelector('.record-badge');badge.textContent=r.type==='condition'?(r.condition||'Condition'):(r.priority||'Finding');badge.className=`badge record-badge ${r.type==='condition'?'condition':(r.priority==='Urgent'?'urgent':'finding')}`;n.querySelector('.record-location').textContent=r.location||'No location';n.querySelector('.record-description').textContent=r.description||'';n.querySelector('.record-meta').innerHTML=`<span>${r.type==='condition'?'CONDITION / PHOTO':'FINDING'}</span><span>📷 ${r.photos?.length||0}</span>`;n.querySelector('.thumbs').innerHTML=(r.photos||[]).slice(0,4).map(u=>`<img src="${u}">`).join('');root.appendChild(n);});}
 function renderWorkPlan(){const q=$('#workSearch').value.trim().toLowerCase();const f=$('#workFilter').value;const now=today();let list=state.workplan.filter(w=>!q||`${w.description} ${w.responsible} ${w.remarks}`.toLowerCase().includes(q));if(f==='incomplete')list=list.filter(w=>Number(w.progress)<100);if(f==='complete')list=list.filter(w=>Number(w.progress)===100);if(f==='overdue')list=list.filter(w=>w.dueDate&&w.dueDate<now&&Number(w.progress)<100);const root=$('#workPlanList');root.innerHTML='';if(!list.length){root.innerHTML='<article class="card"><p class="muted">No matching work items.</p></article>';return;}list.forEach(w=>{const n=$('#workTemplate').content.cloneNode(true);const card=n.querySelector('.work-card');if(w.dueDate&&w.dueDate<now&&Number(w.progress)<100)card.classList.add('overdue');n.querySelector('.work-no').textContent=`WORK No. ${w.no}`;n.querySelector('.work-description').textContent=w.description||'Untitled work';n.querySelector('.progress-big').textContent=`${Number(w.progress)||0}%`;n.querySelector('.work-meta').innerHTML=`<span>Responsible: ${esc(w.responsible||'—')}</span><span>Due: ${fmtDate(w.dueDate)}</span>${w.sourceRecordNo?`<span>Finding #${String(w.sourceRecordNo).padStart(3,'0')}</span>`:''}`;n.querySelector('.work-remarks').textContent=w.remarks||'';n.querySelector('.edit-work').addEventListener('click',()=>openWorkDialog(w));root.appendChild(n);});}
+
+function renderReportPreview(){
+ const root=$('#reportPreview'); if(!root)return; const i=state.inspection;
+ if(!i){root.innerHTML='<article class="card"><p class="muted">No inspection started.</p></article>';return;}
+ const findings=state.records.filter(r=>r.type==='finding'); const urgent=findings.filter(r=>r.priority==='Urgent'); const key=findings.filter(r=>r.includeSummary);
+ const photos=state.records.reduce((n,r)=>n+(r.photos?.length||0),0);
+ const areaOrder=[]; const grouped={};
+ state.records.forEach(r=>{if(!grouped[r.area]){grouped[r.area]=[];areaOrder.push(r.area)} grouped[r.area].push(r)});
+ let html=`<article class="report-sheet cover"><div class="report-status">${i.finishedAt?'COMPLETED REPORT':'DRAFT PREVIEW'}</div><h1>SUPERINTENDENT INSPECTION REPORT</h1><h2>${esc(i.vessel)}</h2><div class="report-info"><div><strong>IMO</strong><span>${esc(i.imo||'—')}</span></div><div><strong>Port</strong><span>${esc(i.port||'—')}</span></div><div><strong>Inspection date</strong><span>${fmtDate(i.dateFrom)}${i.dateTo&&i.dateTo!==i.dateFrom?' – '+fmtDate(i.dateTo):''}</span></div><div><strong>Inspector</strong><span>${esc(i.inspector||'—')}</span></div></div><h3>Inspection reason</h3><p>${esc(i.reason||'—')}</p><div class="report-stats"><span>Records <b>${state.records.length}</b></span><span>Findings <b>${findings.length}</b></span><span>Urgent <b>${urgent.length}</b></span><span>Photos <b>${photos}</b></span></div></article>`;
+ if(key.length){html+=`<article class="report-sheet"><h2>Key Notices</h2><ol>${key.map(r=>`<li><strong>${esc(r.location||r.area)}</strong> — ${esc(r.description||'')}</li>`).join('')}</ol></article>`;}
+ areaOrder.forEach((area,idx)=>{
+  html+=`<article class="report-sheet"><h2>${idx+1}. ${esc(area).toUpperCase()}</h2>`;
+  grouped[area].forEach(r=>{
+   html+=`<section class="report-record"><div class="report-record-head"><strong>${r.type==='finding'?'Finding':'Condition'} #${String(r.no).padStart(3,'0')}</strong><span class="badge ${r.type==='condition'?'condition':(r.priority==='Urgent'?'urgent':'finding')}">${esc(r.type==='condition'?(r.condition||'Condition'):(r.priority||'Finding'))}</span></div><h3>${esc(r.location||'')}</h3><p>${esc(r.description||'')}</p>`;
+   if(r.photos?.length)html+=`<div class="report-photos">${r.photos.map((u,n)=>`<figure><img src="${u}"><figcaption>Photo ${n+1}</figcaption></figure>`).join('')}</div>`;
+   html+='</section>';
+  });
+  html+='</article>';
+ });
+ if(i.finishedAt)html+=`<article class="report-sheet signature"><h2>Inspection completed</h2><p>Completed: ${esc(fmtDateTime(i.finishedAt))}</p><p>Superintendent: ${esc(i.inspector||'—')}</p></article>`;
+ root.innerHTML=html;
+}
 
 $('#exportExcelBtn').addEventListener('click',exportExcelXml);
 function exportExcelXml(){
@@ -79,7 +112,7 @@ function downloadText(filename,text,type='application/json'){
  const blob=new Blob([text],{type}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 $('#exportProjectBtn').addEventListener('click',()=>{
- const i=state.inspection||{}; const payload={format:'ship-inspector-project',version:'0.3',exportedAt:new Date().toISOString(),state};
+ const i=state.inspection||{}; const payload={format:'ship-inspector-project',version:'0.4',exportedAt:new Date().toISOString(),state};
  downloadText(`${(i.vessel||'Vessel').replace(/[^a-z0-9]+/gi,'_')}_Inspection_Project.json`,JSON.stringify(payload,null,2));
 });
 $('#importProjectInput').addEventListener('change',async e=>{
@@ -92,7 +125,7 @@ function renderReview(){
  const root=$('#reviewSummary'); if(!root)return; const i=state.inspection;
  if(!i){root.innerHTML='<p class="muted">No project loaded.</p>'; return;}
  const findings=state.records.filter(r=>r.type==='finding').length;
- root.innerHTML=`<h3>${esc(i.vessel)}</h3><p>IMO ${esc(i.imo||'—')} · ${fmtDate(i.dateFrom)}</p><div class="stats"><span class="stat">Records ${state.records.length}</span><span class="stat">Findings ${findings}</span><span class="stat">Work ${state.workplan.length}</span></div>`;
+ root.innerHTML=`<h3>${esc(i.vessel)}</h3><p>IMO ${esc(i.imo||'—')} · ${fmtDate(i.dateFrom)}</p><p><strong>Status:</strong> ${i.finishedAt?'Completed / ready for review':'Draft / active'}</p><div class="stats"><span class="stat">Records ${state.records.length}</span><span class="stat">Findings ${findings}</span><span class="stat">Work ${state.workplan.length}</span></div>`;
 }
 
 $$('[data-voice-target]').forEach(btn=>btn.addEventListener('click',()=>startVoice(btn.dataset.voiceTarget,btn)));
