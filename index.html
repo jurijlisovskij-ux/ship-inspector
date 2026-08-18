@@ -6,25 +6,27 @@
 <link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="topbar"><div><div class="eyebrow">MOBILE-FIRST MVP v0.3</div><h1>Ship Inspector</h1></div><button id="installBtn" class="ghost" hidden>Install</button></header>
+<header class="topbar"><div><div class="eyebrow">MOBILE-FIRST MVP v0.4</div><h1>Ship Inspector</h1></div><button id="installBtn" class="ghost" hidden>Install</button></header>
 <main class="shell">
 <nav class="tabs"><button class="tab active" data-view="dashboard">Home</button><button class="tab" data-view="inspection">Inspection</button><button class="tab" data-view="workplan">Work Plan</button><button class="tab" data-view="review">PC Review</button></nav>
 <section id="view-dashboard" class="view active">
 <article class="hero card"><span class="pill">Mobile capture</span><h2>See → Photo → Dictate → Save</h2><p>Fast onboard capture. Final wording and report layout can be reviewed later on PC.</p></article>
 <div class="grid two"><article class="card action-card"><h3>New Inspection</h3><button id="newInspectionBtn" class="primary big">Start inspection</button></article><article class="card action-card"><h3>Continue</h3><button id="continueBtn" class="secondary big">Open current inspection</button></article></div>
-<article class="card"><div class="section-title"><div><span class="eyebrow">CURRENT DRAFT</span><h3 id="dashInspectionTitle">No inspection started</h3></div><div id="dashStats" class="stats"></div></div></article>
+<article class="card"><div class="section-title"><div><span class="eyebrow">CURRENT REPORT</span><h3 id="dashInspectionTitle">No inspection started</h3><p id="dashStatus" class="muted"></p></div><div id="dashStats" class="stats"></div></div></article>
 </section>
 <section id="view-inspection" class="view">
 <article class="card" id="inspectionSetup"><span class="eyebrow">NEW</span><h2>Superintendent Inspection</h2><div class="form-grid">
 <label>Vessel name<input id="vesselName" placeholder="M/V ALLEGRO"></label><label>IMO number<input id="imo" inputmode="numeric"></label><label>Port<input id="port"></label><label>Date from<input id="dateFrom" type="date"></label><label>Date to<input id="dateTo" type="date"></label><label>Inspector<input id="inspector"></label><label class="wide">Inspection reason<textarea id="reason" rows="2">Assessment of vessel condition.</textarea></label></div><button id="startInspectionBtn" class="primary big full">START INSPECTION</button></article>
 <div id="inspectionWorkspace" hidden>
-<article class="card compact sticky-card"><div class="section-title"><div><span class="eyebrow">ACTIVE</span><h2 id="inspectionHeading"></h2><p id="inspectionMeta" class="muted"></p></div><div id="inspectionStats" class="stats"></div></div>
+<article class="card compact sticky-card"><div class="section-title"><div><span class="eyebrow" id="inspectionStatusLabel">ACTIVE</span><h2 id="inspectionHeading"></h2><p id="inspectionMeta" class="muted"></p></div><div id="inspectionStats" class="stats"></div></div>
 <div class="mobile-actions"><button id="quickFindingBtn" class="danger big full">⚠ FINDING</button><button id="quickConditionBtn" class="primary big full">📷 CONDITION / PHOTO</button></div>
-<div class="button-row"><button id="addRecordBtn" class="secondary">+ Add Record</button><button id="printReportBtn" class="secondary">Print / PDF</button></div></article>
+<div class="button-row"><button id="addRecordBtn" class="secondary">+ Add Record</button><button id="previewReportBtn" class="secondary">👁 Report Preview</button></div>
+<button id="finishReportBtn" class="finish big full">✓ FINISH REPORT</button></article>
 <article class="card"><div class="section-title"><h3>Recent records</h3><span class="muted">Newest first</span></div><div id="recordsList" class="stack"></div></article></div>
 </section>
 <section id="view-workplan" class="view"><article class="card compact"><div class="section-title"><div><span class="eyebrow">VESSEL</span><h2>Work Plan</h2></div><button id="exportExcelBtn" class="secondary">Export Excel</button></div><div class="filters"><input id="workSearch" placeholder="Search work..."><select id="workFilter"><option value="all">All</option><option value="incomplete">&lt;100%</option><option value="complete">100%</option><option value="overdue">Overdue</option></select><button id="addWorkBtn" class="primary">+ Add Work</button></div></article><div id="workPlanList" class="stack"></div></section>
 <section id="view-review" class="view"><article class="card"><span class="eyebrow">TRANSFER / PC REVIEW</span><h2>Inspection Project</h2><p>Export the complete inspection from phone/tablet, move the file to PC, then import it here for editing and final report preparation.</p><div class="button-row"><button id="exportProjectBtn" class="primary">Export Project</button><label class="secondary file-btn">Import Project<input id="importProjectInput" type="file" accept="application/json,.json" hidden></label></div><div id="reviewSummary" class="review-summary"></div></article></section>
+<section id="view-preview" class="view"><article class="card preview-toolbar"><div><span class="eyebrow">REPORT PREVIEW</span><h2>Superintendent Inspection Report</h2></div><div class="button-row"><button id="backToInspectionBtn" class="secondary">← Inspection</button><button id="printReportBtn" class="primary">Print / PDF</button></div></article><div id="reportPreview"></div></section>
 </main>
 <dialog id="recordDialog"><form method="dialog" id="recordForm" class="dialog-form"><div class="dialog-head"><div><span class="eyebrow">INSPECTION RECORD</span><h2 id="recordDialogTitle">Add Record</h2></div><button type="button" class="icon" data-close="#recordDialog">×</button></div>
 <div class="segmented" id="recordTypeGroup"><button type="button" data-type="condition" class="active">✓ Condition</button><button type="button" data-type="finding">⚠ Finding</button></div>
